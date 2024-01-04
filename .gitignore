@@ -160,5 +160,4 @@ cython_debug/
 #.idea/
 
 image_test/
-labels/
 subset/
