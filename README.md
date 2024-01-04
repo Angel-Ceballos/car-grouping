@@ -6,7 +6,7 @@ The idea is to explore the data, analyze and extract significat features for gro
 Table of contents
 -----------------
 * [Data Exploration](#exploration)    
-* [Prerequisite](#prerequisite)
+* [Model Training](#model)
 * [Demo: YOLOv4](#yolov4)
 * [Demo: Running the App](#app)
 
@@ -65,3 +65,7 @@ We will start by downloading the data through SSH and consequently exploring it.
 
     - After
         - <img src="./display/balance_orientation.png" width="400" />
+
+<a name="model"></a>
+Model Training
+------------
