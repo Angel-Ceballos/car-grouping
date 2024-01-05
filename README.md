@@ -128,7 +128,7 @@ Finally, what training strategy should we use?
 
     loss=loss1+loss2+loss3
 ```
-- Model Architecture optimization
+- Model Architecture
 
     <img src="./display/heads.png" width="500" />
 ```python
