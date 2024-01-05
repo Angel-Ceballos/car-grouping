@@ -7,7 +7,7 @@ Table of contents
 -----------------
 * [Data Exploration](#exploration)    
 * [Model Training](#model)
-* [Demo: YOLOv4](#yolov4)
+* [Model Testing](#metrics)
 * [Demo: Running the App](#app)
 
 <a name="exploration"></a>
@@ -69,3 +69,138 @@ We will start by downloading the data through SSH and consequently exploring it.
 <a name="model"></a>
 Model Training
 ------------
+Now that we are ready for training the model, there are a couple of design decisions we need to think about.
+
+For example, what model or models are optimal for solving it. The classification task is considered sparse, while object detection/segmentation are dense. For this reason, we can use a simpler architectures. Resnet18 is a good candidate as it capable of learning the desired fuction, with a reduced dataset, and it can be scale if necessary. So lets go with the efficient yet powerful architecture. 
+
+On the other hand, how do we solve the multiple classification task? Well, in my opinion there are two obvious paths. The first is to concatenate and one-hot encode the multiple classidications task into a multi-label classification. Applying binary cross entropy to each node.
+
+    
+    For example: Color:[0,0,1]; Type:[0,1,0]; Orientation:[1,0,0] -> Multi-label[0,0,1,0,1,0,1,0,0] 
+
+The other solution is to create a multi-head model. For me, this is the best approach as you have more control over specific individual task. For example, you could use a keypoint estimator for the orientation, and a classificator for the color and type. For simplicity reasons, we will stick with the predefined classification task but each will have its own head and loss function. We have multiple labels for each class, but they are mutually exclusive, so we can use softmax plus cross entropy and sum the 3 loss criterias.
+- Example    
+    - <img src="./display/multi_head.jpg" width="500" />
+
+Finally, what training strategy should we use?
+- Augmentation 
+    - Because color is part of the classification, we need to be careful with aggresive augmentations, specially in the color space. So the plan is to do some moderate transformations like rotation, translation, brightness, etc...
+```python
+    A.Rotate(limit=20, p=0.25),
+    A.IAAAffine(shear=15, scale=1.0, mode="constant", p=0.2),
+    A.RandomBrightnessContrast(contrast_limit=0.5, brightness_limit=0.5, p=0.25)
+    A.OneOf([,
+        A.GaussNoise(p=0.8),
+        A.ImageCompression(p=0.8),
+        A.RandomGamma(p=0.8),
+        A.Blur(p=0.8),
+    ], p=1.0),
+    A.ShiftScaleRotate(shift_limit=0.3, scale_limit=0.3, rotate_limit=0, p=0.5),
+    A.Resize(width=IMAGE_SIZE, height=IMAGE_SIZE),
+    A.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]),
+    ToTensorV2()
+ ```
+- Parameters and Hyperparameters
+    - To avoid overfitting we will use 25 epochs and resize all images to standard 128x128 pixels.
+ ```python
+    PRE_TRAIN = True
+    LEARNING_RATE = 1e-4
+    WEIGHT_DECAY = 5e-4
+    BATCH_SIZE = 64
+    NUM_EPOCHS = 25
+    IMAGE_SIZE = 128
+
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=config.LEARNING_RATE, weight_decay=config.WEIGHT_DECAY)
+
+    loss=loss1+loss2+loss3
+```
+- Model Architecture
+```python
+    self.fc1 = nn.Linear(512, 10)  #For color class
+    self.fc2 = nn.Linear(512, 8)    #For type class
+    self.fc3 = nn.Linear(512, 8)    #For orientation class
+    ================================================================
+    Total params: 11,189,850
+    Trainable params: 11,189,850
+    Non-trainable params: 0
+    ----------------------------------------------------------------
+    Input size (MB): 0.19
+    Forward/backward pass size (MB): 20.50
+    Params size (MB): 42.69
+    Estimated Total Size (MB): 63.38
+    ----------------------------------------------------------------
+```
+- Training Results
+    - The transfer learning, data balance, moderate augmentation and recude epochs help the model avoid to much overfitting. The training and validation loss plummeted followed by a brief intersection and continued decreasing parallelly. Would recommend labeling more data and increasing epochs.
+    - <img src="./model/loss_Resnet18_car.png" width="500" />
+
+<a name="metrics"></a>
+Model Testing
+------------
+For the evaluation metric I will be using the confusion matrix to compute acurracy, precision and recall.
+
+<img src="./display/cms.png" width="1200" />
+
+- Color Metrics
+```python
+              precision    recall  f1-score   support
+
+           0       1.00      1.00      1.00        17
+           1       1.00      1.00      1.00        11
+           2       1.00      0.92      0.96        12
+           3       1.00      1.00      1.00         2
+           4       1.00      1.00      1.00         4
+           6       1.00      1.00      1.00        49
+           7       0.94      0.97      0.96        35
+           8       1.00      1.00      1.00         1
+           9       0.95      0.95      0.95        22
+
+    accuracy                           0.98       153
+   macro avg       0.99      0.98      0.99       153
+weighted avg       0.98      0.98      0.98       153
+
+Accuracy:  0.9825156325156326
+```
+- Type Metrics
+```python
+              precision    recall  f1-score   support
+
+           0       0.83      0.56      0.67         9
+           1       0.92      0.96      0.94        72
+           2       0.90      0.82      0.86        11
+           3       0.86      1.00      0.92         6
+           4       0.83      0.88      0.86        17
+           5       0.88      0.78      0.82         9
+           6       1.00      1.00      1.00        22
+           7       1.00      1.00      1.00         7
+
+    accuracy                           0.92       153
+   macro avg       0.90      0.87      0.88       153
+weighted avg       0.91      0.92      0.91       153
+
+Accuracy:  0.8740251782531194
+```
+- Orientation Metrics
+```python
+              precision    recall  f1-score   support
+
+           0       1.00      0.94      0.97        16
+           1       0.85      0.85      0.85        13
+           2       0.96      0.96      0.96        28
+           3       0.96      1.00      0.98        25
+           4       0.89      0.97      0.93        35
+           5       1.00      0.90      0.95        30
+           6       0.75      0.75      0.75         4
+           7       0.50      0.50      0.50         2
+
+    accuracy                           0.93       153
+   macro avg       0.86      0.86      0.86       153
+weighted avg       0.94      0.93      0.93       153
+
+Accuracy:  0.8586710164835165
+```
+- Conclusion
+    - Overall the model did a good job, taking into account the dataset shinanigans, scoring an **avg accuracy of 90.3** with unseen data. Color and type can be improved by more examples, while orientation might benefit with a continuous approach like keypoints.
