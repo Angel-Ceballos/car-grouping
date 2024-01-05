@@ -5,10 +5,20 @@ The idea is to explore the data, analyze and extract significat features for gro
 
 Table of contents
 -----------------
+* [Prerequisite](#prerequisite)
 * [Data Exploration](#exploration)    
 * [Model Training](#model)
 * [Model Testing](#metrics)
 * [Optimization](#optimization)
+
+<a name="prerequisite"></a>
+Prerequisite
+------------
+
+If you are planning on following the steps inside **solution.py** notebook, install the libraries with **requirements.txt**.
+- ```shell
+    $ pip3 install -r requirements.txt
+    ```
 
 <a name="exploration"></a>
 Data Exploration
