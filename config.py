@@ -9,7 +9,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 LEARNING_RATE = 1e-4
 WEIGHT_DECAY = 5e-4
 BATCH_SIZE = 64
-NUM_EPOCHS = 150
+NUM_EPOCHS = 25
 NUM_WORKERS = 8
 # CHECKPOINT_FILE = "best_model_ResNet18_TCD_128x128.pth"
 CHECKPOINT_FILE = "placeholder.pth"
@@ -25,7 +25,7 @@ CLASS_NUM = 5
 # Data augmentation for images
 train_transforms = A.Compose(
     [
-        A.Rotate(limit=10, p=0.25),
+        A.Rotate(limit=20, p=0.25),
         A.IAAAffine(shear=15, scale=1.0, mode="constant", p=0.2),
         A.RandomBrightnessContrast(contrast_limit=0.5, brightness_limit=0.5, p=0.25),
         A.OneOf([
@@ -34,7 +34,7 @@ train_transforms = A.Compose(
             A.RandomGamma(p=0.8),
             A.Blur(p=0.8),
         ], p=1.0),
-        A.ShiftScaleRotate(shift_limit=0.2, scale_limit=0.2, rotate_limit=0, p=0.5),
+        A.ShiftScaleRotate(shift_limit=0.3, scale_limit=0.3, rotate_limit=0, p=0.5),
         A.Resize(width=IMAGE_SIZE, height=IMAGE_SIZE),
         A.Normalize(
             mean=[0.485, 0.456, 0.406],

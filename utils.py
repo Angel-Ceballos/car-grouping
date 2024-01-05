@@ -4,64 +4,38 @@ import config
 import pandas as pd
 from tqdm import tqdm
 from torchvision import transforms
-# from torchvision.ops.boxes import _box_inter_union
 import matplotlib.pyplot as plt
 import torchvision.models as models
 import torch.nn as nn
+import seaborn as sn
+from sklearn.metrics import confusion_matrix
+import itertools
 
 plt.style.use('ggplot')
 
 
-def get_prediction(loader, model, device, out_name):
+def get_prediction(loader, model, device):
     """
+    Predict and return dataframe of pred vs gt
     """
-    predictions = []
-    images = []
-    gt_list = []
+    rows = []
     model.eval()
-    inv_normalize = transforms.Normalize(
-            mean=[-0.485/0.229, -0.456/0.224, -0.406/0.255],
-            std=[1/0.229, 1/0.224, 1/0.255]
-        )
     for batch_idx, (data, targets) in enumerate(loader):
-        data = data.to(device=device)
-        targets = targets.to(device=device)
-        norm_data = inv_normalize(data)
-
+        image = data.to(device=device)
+        label1, label2, label3 = targets['color'].item().__round__(), targets['type'].item().__round__(), targets['orientation'].item().__round__()
+    
         # forward
-        scores = model(data)
-        preds = scores.cpu().detach().numpy()
-        predictions.append(preds[0].tolist())
-        img = norm_data[0].detach().cpu().numpy()
-        img = img.transpose(1, 2, 0).tolist()
-        gt = targets[0].cpu().numpy().tolist()
-        images.append(img)
-        gt_list.append(gt)
+        output = model(image)
+        # softmax
+        label1_hat=torch.argmax(output['label1']).cpu().item()
+        label2_hat=torch.argmax(output['label2']).cpu().item()
+        label3_hat=torch.argmax(output['label3']).cpu().item()
+        rows.append({'pred_color':label1_hat, 'pred_type':label2_hat, 'pred_orientation':label3_hat,
+                     'gt_color':label1, 'gt_type':label2, 'gt_orientation':label3})
  
-    df = pd.DataFrame({"RowId": np.arange(1, len(predictions)+1), "Prediction": predictions, "GT": gt_list, "Image": images})
-    df.to_csv(out_name+".csv", index=False)
-    model.train()
+    df = pd.DataFrame(rows)
+    return df
 
-# def giou_loss(input_boxes, target_boxes, eps=1e-7):
-#     """
-#     Args:
-#         input_boxes: Tensor of shape (N, 4) or (4,).
-#         target_boxes: Tensor of shape (N, 4) or (4,).
-#         eps (float): small number to prevent division by zero
-#     """
-#     inter, union = _box_inter_union(input_boxes, target_boxes)
-#     iou = inter / union
-
-#     # area of the smallest enclosing box
-#     min_box = torch.min(input_boxes, target_boxes)
-#     max_box = torch.max(input_boxes, target_boxes)
-#     area_c = (max_box[:, 2] - min_box[:, 0]) * (max_box[:, 3] - min_box[:, 1])
-
-#     giou = iou - ((area_c - union) / (area_c + eps))
-
-#     loss = 1 - giou
-
-#     return loss.sum()
 
 def get_rmse(loader, model, loss_fn, device):
     model.eval()
@@ -82,6 +56,26 @@ def get_rmse(loader, model, loss_fn, device):
     print(f"Loss on val: {loss_avg}\n")
     return loss_avg
 
+def get_cross_loss(loader, model, loss_fn, device):
+    model.eval()
+    valid_loss = 0.0
+    for batch_idx, (data, targets) in enumerate(loader):
+            image = data.to(device=device)
+            label1, label2, label3 = targets['color'].to(device), targets['type'].to(device), targets['orientation'].to(device)
+          
+            output = model(image)
+            label1_hat=output['label1']
+            label2_hat=output['label2']
+            label3_hat=output['label3']               
+            # calculate loss
+            loss1=loss_fn(label1_hat, label1.type(torch.LongTensor).to(device))
+            loss2=loss_fn(label2_hat, label2.type(torch.LongTensor).to(device))
+            loss3=loss_fn(label3_hat, label3.type(torch.LongTensor).to(device))     
+            loss=loss1+loss2+loss3
+            valid_loss = valid_loss + ((1 / (batch_idx + 1)) * (loss.data - valid_loss))
+    model.train()
+    print(f"Loss on val: {valid_loss}\n")
+    return valid_loss.cpu()
 
 def save_checkpoint(state, filename="my_checkpoint.pth.tar"):
     print("=> Saving checkpoint")
@@ -165,7 +159,7 @@ class SaveBestModel:
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': criterion,
-                }, f'data/best_model_{self.filename}_L-{current_valid_loss:.2f}.pth')
+                }, f'model/best_model_{self.filename}_L-{current_valid_loss:.2f}.pth')
 
 def save_model(epochs, model, optimizer, criterion, filename):
     """
@@ -177,7 +171,7 @@ def save_model(epochs, model, optimizer, criterion, filename):
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': criterion,
-                }, f'data/final_model_{filename}.pth')
+                }, f'model/final_model_{filename}.pth')
 
 def save_plots(train_loss, valid_loss, filename):
     # train_acc, valid_acc,
@@ -212,4 +206,39 @@ def save_plots(train_loss, valid_loss, filename):
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend()
-    plt.savefig(f'data/loss_{filename}.png')
+    plt.savefig(f'model/loss_{filename}.png')
+
+def plot_confusion_matrix(cm, classes,
+                        normalize=False,
+                        title='Confusion matrix',
+                        cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `norimport pandas as pd
+import seaborn as sn
+from sklearn.metrics import confusion_matrixmalize=True`.
+    """
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    print(cm)
+
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, cm[i, j],
+            horizontalalignment="center",
+            color="white" if cm[i, j] > thresh else "black")
+
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
