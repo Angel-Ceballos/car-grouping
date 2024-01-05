@@ -266,4 +266,4 @@ The process is straight foward, first transform the onnx model to trt within the
 ```
 <img src="./display/jetson_nano.png" width="700" />
 
-Thanks for the challenge, its was really fun!
+Thanks for the challenge, its was really fun! For a detailed implemetation of optimization plus deployment on the jetson check out my other project [smart-parking.](https://github.com/Angel-Ceballos/smart-parking)
