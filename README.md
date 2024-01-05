@@ -10,6 +10,7 @@ Table of contents
 * [Model Training](#model)
 * [Model Testing](#metrics)
 * [Optimization](#optimization)
+* [Deployment](#deployment)
 
 <a name="prerequisite"></a>
 Prerequisite
@@ -127,7 +128,7 @@ Finally, what training strategy should we use?
 
     loss=loss1+loss2+loss3
 ```
-- Model Architecture
+- Model Architectureoptimization
 
     <img src="./display/heads.png" width="500" />
 ```python
@@ -250,3 +251,19 @@ Pytorch Model: 6.649396909022471 ms
 Onnx Model: 3.4263269931834657 ms
 ```
 <img src="./display/optimization.png" width="500" />
+
+<a name="deployment"></a>
+Model Trt Optimization and Deployment
+------------
+To finish with the cherry on top. Lets further optimize the model with TensorRT fp 16. For this I will be using my jetson nano.
+The process is straight foward, first transform the onnx model to trt within the specific hardware (jetson nano) and finally use the python api to infer.
+
+```shell
+    $ python3 onnx_to_tensorrt.py -m Resnet18_cuda_car
+```
+```shell
+    $ python3 car_trt_inf.py -e Resnet18_cuda_car.trt -i ./subset -p V1MS
+```
+<img src="./display/jetson_nano.png" width="700" />
+
+Thanks for the challenge, its was really fun!
