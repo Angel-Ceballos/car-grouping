@@ -161,3 +161,5 @@ cython_debug/
 
 image_test/
 subset/
+model/*.pth
+model/*.onnx
