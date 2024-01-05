@@ -1,14 +1,14 @@
 # Car Grouping
 ## In this repo I will walk you through the process of creating a classificator for grouping cars based on their features.
 -------------------------------------------
-The idea is to explore the data, analyze and extract significat features for grouping based on a classification task.
+The idea is to explore the data, analyze and extract significat features for grouping based on a classification task. Refere to **solution.ipynb** for the step by step.
 
 Table of contents
 -----------------
 * [Data Exploration](#exploration)    
 * [Model Training](#model)
 * [Model Testing](#metrics)
-* [Demo: Running the App](#app)
+* [Optimization](#optimization)
 
 <a name="exploration"></a>
 Data Exploration
@@ -118,6 +118,8 @@ Finally, what training strategy should we use?
     loss=loss1+loss2+loss3
 ```
 - Model Architecture
+
+    <img src="./display/heads.png" width="500" />
 ```python
     self.fc1 = nn.Linear(512, 10)  #For color class
     self.fc2 = nn.Linear(512, 8)    #For type class
@@ -204,3 +206,37 @@ Accuracy:  0.8586710164835165
 ```
 - Conclusion
     - Overall the model did a good job, taking into account the dataset shinanigans, scoring an **avg accuracy of 90.3** with unseen data. Color and type can be improved by more examples, while orientation might benefit with a continuous approach like keypoints.
+
+<a name="optimization"></a>
+Model Optimization
+------------
+The idea behind using a small yet powerful backbone as resnet18 was to infer using the cpu in realtime.
+For this I used onnx and onnxruntime to optimize and profile the model trained.
+
+Onnx by default applies graph optimizations like: [Onnx Graph](https://github.com/microsoft/onnxruntime-openenclave/blob/openenclave-public/docs/ONNX_Runtime_Graph_Optimizations.md) 
+
+- Constant Folding
+- Redundant node eliminations
+    - Identity Elimination
+    - Slice Elimination
+    - Unsqueeze Elimination
+    - Dropout Elimination
+- Semantics-preserving node fusions
+    - Conv Add Fusion
+    - Conv Mul Fusion
+    - Conv BatchNorm Fusion
+    - Relu Clip Fusion
+    - Reshape Fusion
+
+```python
+# Inference profiler
+x_ft = torch.rand(1, 3, 128, 128).to("cpu")
+x_np = x_ft.numpy()
+car_model.to("cpu").eval()
+print(f"Pytorch Model: {np.mean([timer(car_model,x_ft) for _ in range(1000)])} ms")
+print(f"Onnx Model: {np.mean([timer(sess_run, sess, x_np) for _ in range(1000)])} ms")
+
+Pytorch Model: 6.649396909022471 ms
+Onnx Model: 3.4263269931834657 ms
+```
+<img src="./display/optimization.png" width="500" />
